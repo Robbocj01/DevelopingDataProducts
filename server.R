@@ -1,28 +1,111 @@
 #
-# This is the server logic of a Shiny web application. You can run the
-# application by clicking 'Run App' above.
-#
-# Find out more about building applications with Shiny here:
-#
-#    http://shiny.rstudio.com/
-#
+# Developing Data Products - Shiny Application
+# Author:  C Robertson
+# Date: December 2019
+
 
 library(shiny)
+library(tidyverse)
+library(tidyquant)
+library(timetk)
 
 # Define server logic required to draw a histogram
 shinyServer(function(input, output) {
     output$distPlot <- renderPlot({
-        input_mean <- input$ForcastedReturn
-        input_STDev <- input$StdDeviation
+        input_mean <- input$ForcastedReturn / 120
+        input_STDev <- input$StdDeviation / 120
         input_no_points <- input$numeric
-        hist_data <- rnorm(input_no_points,input_mean,input_STDev)
+        
+        # Then we use the rnorm() function to sample from a distribution with mean equal to 
+        # Mean and standard deviation equal. That is the crucial random sampling that underpins this exercise.
+        simulated_monthly_returns <- rnorm(input_no_points,input_mean,input_STDev)
+        
+        
+        
+        simulation_accum_1 <- function(init_value,N, input_no_points, mean, stdev) {
+            tibble(c(init_value, 1 + rnorm(N, mean, stdev))) %>% 
+                `colnames<-`("returns") %>%
+                mutate(growth = 
+                           accumulate(returns, 
+                                      function(x, y) x * y)) %>% 
+                select(growth)
+        }
+        
+        sims <- input$N_monteC_sims
+        starts <- 
+            rep(1, sims) %>%
+            set_names(paste("sim", 1:sims, sep = ""))
+        
+        
+        monte_carlo_sim <- 
+            map_dfc(starts, 
+                    simulation_accum_1, 
+                    N = 120, 
+                    mean = input_mean, 
+                    stdev = input_STDev)
+        
+        
+        
+        ### Charting both the hisotgram and Monte Carlo simulations
+        
+        
         # draw the histogram with the specified number of bins
-        hist(hist_data, breaks = 40, col = 'darkgray', border = 'white', main = "Histogram of Equity Index Returns",
+        hist(simulated_monthly_returns, breaks = 40, col = 'darkgray', border = 'white', main = "Histogram of Equity Index Returns",
              xlab = "Returns", prob = TRUE)
         if (input$den_curve){
-            lines(density(hist_data), col = "blue", lwd=4)
+            lines(density(simulated_monthly_returns), col = "blue", lwd=4)
         }
 
     })
+    
+    output$montecarloPlot <- renderPlot({        
+    
+        input_mean <- input$ForcastedReturn / 120
+        input_STDev <- input$StdDeviation / 120
+        input_sims <- input$N_monteC_sims
+        
+        simulation_accum_1 <- function(init_value, N, mean, stdev) {
+            tibble(c(init_value, 1 + rnorm(N, mean, stdev))) %>% 
+                `colnames<-`("returns") %>%
+                mutate(growth = 
+                           accumulate(returns, 
+                                      function(x, y) x * y)) %>% 
+                select(growth)
+        }
+        
+        
+        starts <- 
+            rep(1, input_sims) %>%
+            set_names(paste("sim", 1:input_sims, sep = ""))
+        
+        
+        monte_carlo_sim <- 
+            map_dfc(starts, 
+                    simulation_accum_1, 
+                    N = 120, 
+                    mean = input_mean, 
+                    stdev = input_STDev)
+        
+        
+        monte_carlo_sim <- 
+            monte_carlo_sim %>% 
+            mutate(month = seq(1:nrow(.))) %>% 
+            select(month, everything()) %>% 
+            `colnames<-`(c("month", names(starts))) %>% 
+            mutate_all(funs(round(., 2)))
+        
+        
+        
+        monte_carlo_sim %>% 
+            gather(sim, growth, -month) %>% 
+            group_by(sim) %>% 
+            ggplot(aes(x = month, y = growth, color = sim)) + 
+            geom_line() +
+            theme(legend.position="none")+
+            ggtitle("Monte Carlo Simulation of Returns")+
+            xlab("Month") + ylab("Growth of $1")+
+            theme(plot.title = element_text(hjust = 0.5))
+    })
+    
 
 })
