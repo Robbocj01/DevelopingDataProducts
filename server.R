@@ -19,36 +19,7 @@ shinyServer(function(input, output) {
         # Then we use the rnorm() function to sample from a distribution with mean equal to 
         # Mean and standard deviation equal. That is the crucial random sampling that underpins this exercise.
         simulated_monthly_returns <- rnorm(input_no_points,input_mean,input_STDev)
-        
-        
-        
-        simulation_accum_1 <- function(init_value,N, input_no_points, mean, stdev) {
-            tibble(c(init_value, 1 + rnorm(N, mean, stdev))) %>% 
-                `colnames<-`("returns") %>%
-                mutate(growth = 
-                           accumulate(returns, 
-                                      function(x, y) x * y)) %>% 
-                select(growth)
-        }
-        
-        sims <- input$N_monteC_sims
-        starts <- 
-            rep(1, sims) %>%
-            set_names(paste("sim", 1:sims, sep = ""))
-        
-        
-        monte_carlo_sim <- 
-            map_dfc(starts, 
-                    simulation_accum_1, 
-                    N = 120, 
-                    mean = input_mean, 
-                    stdev = input_STDev)
-        
-        
-        
-        ### Charting both the hisotgram and Monte Carlo simulations
-        
-        
+
         # draw the histogram with the specified number of bins
         hist(simulated_monthly_returns, breaks = 40, col = 'darkgray', border = 'white', main = "Histogram of Equity Index Returns",
              xlab = "Returns", prob = TRUE)
@@ -64,6 +35,7 @@ shinyServer(function(input, output) {
         input_STDev <- input$StdDeviation / 120
         input_sims <- input$N_monteC_sims
         
+        # Runs the returns simulationa and creates an index of returns
         simulation_accum_1 <- function(init_value, N, mean, stdev) {
             tibble(c(init_value, 1 + rnorm(N, mean, stdev))) %>% 
                 `colnames<-`("returns") %>%
@@ -73,12 +45,12 @@ shinyServer(function(input, output) {
                 select(growth)
         }
         
-        
+        # Creates the dataframe ot capture the simulated returns
         starts <- 
             rep(1, input_sims) %>%
             set_names(paste("sim", 1:input_sims, sep = ""))
         
-        
+        # Naps the monte carlo simulation
         monte_carlo_sim <- 
             map_dfc(starts, 
                     simulation_accum_1, 
@@ -95,7 +67,7 @@ shinyServer(function(input, output) {
             mutate_all(funs(round(., 2)))
         
         
-        
+        # Plots the results using ggplot
         monte_carlo_sim %>% 
             gather(sim, growth, -month) %>% 
             group_by(sim) %>% 
