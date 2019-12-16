@@ -1,0 +1,121 @@
+---
+title: "Developing Data Products Course Assignment"
+author: "Chris Robertson"
+date: "16th December 2019"
+output: ioslides_presentation
+---
+
+<style>
+pre {
+  font-size: 15px;
+}
+</style>
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+
+library(shiny)
+library(tidyverse)
+library(tidyquant)
+library(timetk)
+
+```
+
+## Introduction
+
+This is a pitch presentation to support the Shiny application that enables users to model equity returns from a forecasted return and standard deviation. 
+
+The Shiny application outputs:
+
+- A histogram of forecasted returns with an optional density plot overlay
+- A Monte Carlo simulation with the option to set the numer of simulations
+
+The Shiny application can be found in:
+
+https://chrisrobbo.shinyapps.io/DDP_Assignment1/
+
+All code can be viewed in:
+
+https://github.com/Robbocj01/DevelopingDataProducts
+
+
+## Data for charts
+
+Simulated monthly returns were generated using the rnorm function. The rnorm functions were given the number of points to generated, a forecasted return as mean and a forecasted standard deviation.
+
+```{r simulated_rets, echo = TRUE}
+        input_mean <- 1 / 120
+        input_STDev <- 2 / 120
+        input_no_points <- 1000
+        
+simulated_monthly_returns <- rnorm(input_no_points,
+                                   input_mean,
+                                   input_STDev)
+head(simulated_monthly_returns, 5)
+```
+
+## Histogram
+
+The first output from the application is a histogram of the simulated returns. In this example I have also chosen to overlay a density line.
+
+```{r histogram_density,  echo = FALSE}
+hist(simulated_monthly_returns, breaks = 40, col = 'darkgray', 
+     border = 'white', main = "Histogram of Equity Index Returns",
+     xlab = "Returns", prob = TRUE)
+lines(density(simulated_monthly_returns), col = "blue", lwd=4)
+```
+
+## Monte Carlo Simulation
+
+The second output is a monet carlo simulation. I have used 20 simulations in this example.
+
+``` {r monte_carlo, echo = FALSE,  warning=FALSE, message = FALSE}
+        input_mean <- 1 / 120
+        input_STDev <- 2 / 120
+        input_sims <- 20
+        
+        # Runs the returns simulationa and creates an index of returns
+        simulation_accum_1 <- function(init_value, N, mean, stdev) {
+            tibble(c(init_value, 1 + rnorm(N, mean, stdev))) %>% 
+                `colnames<-`("returns") %>%
+                mutate(growth = 
+                           accumulate(returns, 
+                                      function(x, y) x * y)) %>% 
+                select(growth)
+        }
+        
+        # Creates the dataframe ot capture the simulated returns
+        starts <- 
+            rep(1, input_sims) %>%
+            set_names(paste("sim", 1:input_sims, sep = ""))
+        
+        # Naps the monte carlo simulation
+        monte_carlo_sim <- 
+            map_dfc(starts, 
+                    simulation_accum_1, 
+                    N = 120, 
+                    mean = input_mean, 
+                    stdev = input_STDev)
+        
+        
+        monte_carlo_sim <- 
+            monte_carlo_sim %>% 
+            mutate(month = seq(1:nrow(.))) %>% 
+            select(month, everything()) %>% 
+            `colnames<-`(c("month", names(starts))) %>% 
+            mutate_all(funs(round(., 2)))
+        
+        
+        # Plots the results using ggplot
+        monte_carlo_sim %>% 
+            gather(sim, growth, -month) %>% 
+            group_by(sim) %>% 
+            ggplot(aes(x = month, y = growth, color = sim)) + 
+            geom_line() +
+            theme(legend.position="none")+
+            ggtitle("Monte Carlo Simulation of Returns")+
+            xlab("Month") + ylab("Growth of $1")+
+            theme(plot.title = element_text(hjust = 0.5))
+
+
+```
