@@ -46,13 +46,13 @@ shinyServer(function(input, output) {
         }
         
         # Creates the dataframe ot capture the simulated returns
-        starts <- 
-            rep(1, input_sims) %>%
+        open_values <- 
+            rep(100, input_sims) %>%
             set_names(paste("sim", 1:input_sims, sep = ""))
         
         # Naps the monte carlo simulation
         monte_carlo_sim <- 
-            map_dfc(starts, 
+            map_dfc(open_values, 
                     simulation_accum_1, 
                     N = 120, 
                     mean = input_mean, 
@@ -63,7 +63,7 @@ shinyServer(function(input, output) {
             monte_carlo_sim %>% 
             mutate(month = seq(1:nrow(.))) %>% 
             select(month, everything()) %>% 
-            `colnames<-`(c("month", names(starts))) %>% 
+            `colnames<-`(c("month", names(open_values))) %>% 
             mutate_all(funs(round(., 2)))
         
         
@@ -73,9 +73,9 @@ shinyServer(function(input, output) {
             group_by(sim) %>% 
             ggplot(aes(x = month, y = growth, color = sim)) + 
             geom_line() +
-            theme(legend.position="none")+
             ggtitle("Monte Carlo Simulation of Returns")+
-            xlab("Month") + ylab("Growth of $1")+
+            theme(legend.position="none")+
+            xlab("Month") + ylab("Growth of $100")+
             theme(plot.title = element_text(hjust = 0.5))
     })
     
